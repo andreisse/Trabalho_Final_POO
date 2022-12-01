@@ -1,0 +1,258 @@
+Model:
+
+public class Task {
+	
+	private int id;
+	private String name;
+	private String description;
+	private boolean isCompleted;
+	
+	public Task(int id, String name, String description, boolean isCompleted) {
+		this.id = id;
+		this.name = name;
+		this.description = description;
+		this.isCompleted = isCompleted;
+	}
+	
+	public int getId() {
+		return this.id;
+	}
+	
+	public String getName() {
+		return this.name;
+	}
+	
+	public String getDescription() {
+		return this.description;
+	}
+	
+	public boolean getIsCompleted() {
+		return this.isCompleted;
+	}
+	
+	public void setName(String name) {
+		this.name = name;
+	}
+	
+	public void setDescription(String description) {
+		this.description = description;
+	}
+	
+	public void setIsCompleted(boolean isCompleted) {
+		this.isCompleted = isCompleted;
+	}
+}
+
+View:
+
+import java.awt.BorderLayout;
+import java.awt.Dimension;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.util.List;
+
+import javax.swing.DefaultListModel;
+import javax.swing.JButton;
+import javax.swing.JFrame;
+import javax.swing.JList;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+
+public class TaskView {
+	
+	private JFrame frame;
+	private JList taskList;
+	private DefaultListModel listModel;
+	
+	public TaskView() {
+		frame = new JFrame("Tasks");
+		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		
+		listModel = new DefaultListModel();
+		taskList = new JList(listModel);
+		
+		JScrollPane listScrollPane = new JScrollPane(taskList);
+		listScrollPane.setPreferredSize(new Dimension(200, 200));
+		
+		JPanel buttonPanel = new JPanel();
+		JButton addButton = new JButton("Add");
+		JButton editButton = new JButton("Edit");
+		JButton deleteButton = new JButton("Delete");
+		JButton completeButton = new JButton("Complete");
+		
+		addButton.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				addTask();
+			}
+		});
+		
+		editButton.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				editTask();
+			}
+		});
+		
+		deleteButton.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				deleteTask();
+			}
+		});
+		
+		completeButton.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				completeTask();
+			}
+		});
+		
+		buttonPanel.add(addButton);
+		buttonPanel.add(editButton);
+		buttonPanel.add(deleteButton);
+		buttonPanel.add(completeButton);
+		
+		frame.getContentPane().add(listScrollPane, BorderLayout.CENTER);
+		frame.getContentPane().add(buttonPanel, BorderLayout.SOUTH);
+		frame.pack();
+		frame.setVisible(true);
+		
+	}
+	
+	public void addTask() {
+		String name = JOptionPane.showInputDialog(frame, "Task name:");
+		if (name != null && !name.equals("")) {
+			String description = JOptionPane.showInputDialog(frame, "Task description:");
+			Task task = new Task(0, name, description, false);
+			TaskController.getInstance().addTask(task);
+			refresh();
+		}
+	}
+	
+	public void editTask() {
+		int index = taskList.getSelectedIndex();
+		if (index != -1) {
+			Task task = (Task) listModel.getElementAt(index);
+			String name = JOptionPane.showInputDialog(frame, "Task name:", task.getName());
+			if (name != null && !name.equals("")) {
+				String description = JOptionPane.showInputDialog(frame, "Task description:", task.getDescription());
+				task.setName(name);
+				task.setDescription(description);
+				TaskController.getInstance().editTask(task);
+				refresh();
+			}
+		}
+	}
+	
+	public void deleteTask() {
+		int index = taskList.getSelectedIndex();
+		if (index != -1) {
+			Task task = (Task) listModel.getElementAt(index);
+			TaskController.getInstance().deleteTask(task);
+			refresh();
+		}
+	}
+	
+	public void completeTask() {
+		int index = taskList.getSelectedIndex();
+		if (index != -1) {
+			Task task = (Task) listModel.getElementAt(index);
+			task.setIsCompleted(true);
+			TaskController.getInstance().editTask(task);
+			refresh();
+		}
+	}
+	
+	public void refresh() {
+		listModel.clear();
+		List<Task> tasks = TaskController.getInstance().getTasks();
+		for (Task task : tasks) {
+			listModel.addElement(task);
+		}
+	}
+	
+}
+
+Controller:
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
+
+public class TaskController {
+	
+	private static TaskController instance;
+	
+	private TaskController() {}
+	
+	public static TaskController getInstance() {
+		if (instance == null) {
+			instance = new TaskController();
+		}
+		return instance;
+	}
+	
+	public void addTask(Task task) {
+		Connection connection = DatabaseConnection.getConnection();
+		try {
+			String query = "INSERT INTO tasks (name, description, is_completed) VALUES (?, ?, ?)";
+			PreparedStatement statement = connection.prepareStatement(query);
+			statement.setString(1, task.getName());
+			statement.setString(2, task.getDescription());
+			statement.setBoolean(3, task.getIsCompleted());
+			statement.executeUpdate();
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+	}
+	
+	public void editTask(Task task) {
+		Connection connection = DatabaseConnection.getConnection();
+		try {
+			String query = "UPDATE tasks SET name = ?, description = ?, is_completed = ? WHERE id = ?";
+			PreparedStatement statement = connection.prepareStatement(query);
+			statement.setString(1, task.getName());
+			statement.setString(2, task.getDescription());
+			statement.setBoolean(3, task.getIsCompleted());
+			statement.setInt(4, task.getId());
+			statement.executeUpdate();
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+	}
+	
+	public void deleteTask(Task task) {
+		Connection connection = DatabaseConnection.getConnection();
+		try {
+			String query = "DELETE FROM tasks WHERE id = ?";
+			PreparedStatement statement = connection.prepareStatement(query);
+			statement.setInt(1, task.getId());
+			statement.executeUpdate();
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+	}
+	
+	public List<Task> getTasks() {
+		List<Task> tasks = new ArrayList<Task>();
+		Connection connection = DatabaseConnection.getConnection();
+		try {
+			String query = "SELECT * FROM tasks";
+			PreparedStatement statement = connection.prepareStatement(query);
+			ResultSet resultSet = statement.executeQuery();
+			while (resultSet.next()) {
+				int id = resultSet.getInt("id");
+				String name = resultSet.getString("name");
+				String description = resultSet.getString("description");
+				boolean isCompleted = resultSet.getBoolean("is_completed");
+				Task task = new Task(id, name, description, isCompleted);
+				tasks.add(task);
+			}
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+		return tasks;
+	}
+	
+}
